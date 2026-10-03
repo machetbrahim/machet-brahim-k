@@ -1,0 +1,608 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Brahim Machet K</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<style>
+  html,body{min-height:100%}
+  body{font-family:'Cairo',system-ui,sans-serif;color:#fff;
+       background:radial-gradient(circle at 20% 10%,#7b2ff7 0,transparent 45%),
+                  radial-gradient(circle at 85% 90%,#e21b3c55 0,transparent 40%),#2d0f5e;
+       background-attachment:fixed}
+  .card{background:rgba(255,255,255,.96);color:#1f1235;border-radius:1rem;box-shadow:0 6px 0 rgba(0,0,0,.18)}
+  .btn{font-weight:800;border-radius:.75rem;padding:.7rem 1.4rem;box-shadow:0 4px 0 rgba(0,0,0,.25);transition:transform .08s,box-shadow .08s}
+  .btn:active{transform:translateY(3px);box-shadow:0 1px 0 rgba(0,0,0,.25)}
+  .btn:disabled{opacity:.45;cursor:not-allowed}
+  .ans{border-radius:1rem;box-shadow:0 6px 0 rgba(0,0,0,.28);transition:transform .08s,box-shadow .08s;font-weight:800}
+  .ans:active{transform:translateY(4px);box-shadow:0 2px 0 rgba(0,0,0,.28)}
+  .c0{background:#e21b3c}.c1{background:#1368ce}.c2{background:#d89e00}.c3{background:#26890c}
+  .pop{animation:pop .35s ease}
+  @keyframes pop{from{transform:scale(.85);opacity:0}to{transform:scale(1);opacity:1}}
+  .pin{letter-spacing:.18em;direction:ltr;unicode-bidi:plaintext}
+  input,textarea,select{color:#1f1235}
+  .ltr{direction:ltr;unicode-bidi:plaintext}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="toast" class="fixed top-4 left-1/2 -translate-x-1/2 z-50 hidden px-5 py-3 rounded-xl bg-black/85 text-white font-bold shadow-xl max-w-[90vw] text-center"></div>
+
+<script>
+/* ============================================================
+   Brahim Machet K — Kahoot-like quiz (HTML5 + Tailwind + JS)
+   Realtime: PeerJS (WebRTC) — no own backend. Quiz saved in localStorage.
+   ============================================================ */
+const COLORS = ['#e21b3c', '#1368ce', '#d89e00', '#26890c'];
+const SHAPE_SVG = [
+  '<svg viewBox="0 0 100 100" class="w-full h-full"><polygon points="50,12 92,88 8,88" fill="#fff"/></svg>',
+  '<svg viewBox="0 0 100 100" class="w-full h-full"><polygon points="50,6 94,50 50,94 6,50" fill="#fff"/></svg>',
+  '<svg viewBox="0 0 100 100" class="w-full h-full"><circle cx="50" cy="50" r="42" fill="#fff"/></svg>',
+  '<svg viewBox="0 0 100 100" class="w-full h-full"><rect x="12" y="12" width="76" height="76" rx="4" fill="#fff"/></svg>'
+];
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const app = html => { $('app').innerHTML = html; window.scrollTo(0, 0); };
+function toast(msg, ms = 2800) {
+  const t = $('toast'); t.textContent = msg; t.classList.remove('hidden');
+  clearTimeout(toast._t); toast._t = setTimeout(() => t.classList.add('hidden'), ms);
+}
+const shape = i => `<span class="inline-block w-8 h-8 shrink-0">${SHAPE_SVG[i]}</span>`;
+
+/* ---------------- Quiz storage ---------------- */
+const LS_KEY = 'brahim_machet_k_quiz_v1';
+const sampleQuiz = () => ({
+  title: 'مسابقة Brahim Machet K',
+  questions: [
+    { q: 'ما هي عاصمة الجزائر؟', opts: ['وهران', 'الجزائر العاصمة', 'قسنطينة', 'عنابة'], correct: 1, time: 20 },
+    { q: 'كم يساوي 7 × 8 ؟', opts: ['54', '56', '48', '64'], correct: 1, time: 20 }
+  ]
+});
+function loadQuiz() {
+  try {
+    const d = JSON.parse(localStorage.getItem(LS_KEY));
+    if (d && Array.isArray(d.questions) && d.questions.length) return d;
+  } catch (e) {}
+  return sampleQuiz();
+}
+let quiz = loadQuiz();
+function saveQuiz() { try { localStorage.setItem(LS_KEY, JSON.stringify(quiz)); } catch (e) {} }
+
+/*MATH_BANK_START*/
+const MATH_TOPICS=["العمليات الحسابية", "النسب المئوية", "معادلات من الدرجة الأولى", "القوى والجذور", "الكسور", "الهندسة", "معادلات من الدرجة الثانية", "الدوال والاشتقاق", "المتتاليات", "الإحصاء والاحتمالات", "المتطابقات والتحليل", "حساب المثلثات", "المتراجحات"];
+const MATH_BANK=[["ما ناتج ⁦52 × 19⁩ ؟",["⁦1040⁩","⁦978⁩","⁦988⁩","⁦998⁩"],2,20,0],["ما ناتج ⁦660 + 962⁩ ؟",["⁦1632⁩","⁦1612⁩","⁦1722⁩","⁦1622⁩"],3,20,0],["ما ناتج ⁦33 ÷ 3⁩ ؟",["⁦14⁩","⁦11⁩","⁦10⁩","⁦12⁩"],1,20,0],["احسب ⁦(2 + 15) × 9⁩ ؟",["⁦153⁩","⁦26⁩","⁦137⁩","⁦162⁩"],0,20,0],["احسب ⁦13 + 7 × 8⁩ ؟",["⁦69⁩","⁦28⁩","⁦99⁩","⁦160⁩"],0,20,0],["ما ناتج ⁦83 × 12⁩ ؟",["⁦996⁩","⁦1006⁩","⁦986⁩","⁦1079⁩"],0,20,0],["ما ناتج ⁦416 + 125⁩ ؟",["⁦551⁩","⁦541⁩","⁦531⁩","⁦641⁩"],1,20,0],["احسب ⁦(3 + 8) × 9⁩ ؟",["⁦99⁩","⁦108⁩","⁦20⁩","⁦75⁩"],0,20,0],["احسب ⁦(10 + 6) × 8⁩ ؟",["⁦24⁩","⁦58⁩","⁦136⁩","⁦128⁩"],3,20,0],["ما ناتج ⁦329 + 884⁩ ؟",["⁦1213⁩","⁦1313⁩","⁦1223⁩","⁦1203⁩"],0,20,0],["ما ناتج ⁦539 + 581⁩ ؟",["⁦1220⁩","⁦1130⁩","⁦1120⁩","⁦1110⁩"],2,20,0],["ما ناتج ⁦92 × 17⁩ ؟",["⁦1574⁩","⁦1554⁩","⁦1656⁩","⁦1564⁩"],3,20,0],["ما ناتج ⁦511 + 785⁩ ؟",["⁦1306⁩","⁦1286⁩","⁦1296⁩","⁦1396⁩"],2,20,0],["احسب ⁦(8 + 5) × 6⁩ ؟",["⁦19⁩","⁦78⁩","⁦38⁩","⁦84⁩"],1,20,0],["ما ناتج ⁦455 ÷ 13⁩ ؟",["⁦48⁩","⁦36⁩","⁦34⁩","⁦35⁩"],3,20,0],["احسب ⁦24 + 9 × 9⁩ ؟",["⁦225⁩","⁦297⁩","⁦42⁩","⁦105⁩"],3,20,0],["احسب ⁦12 + 9 × 3⁩ ؟",["⁦63⁩","⁦24⁩","⁦111⁩","⁦39⁩"],3,20,0],["احسب ⁦(4 + 8) × 9⁩ ؟",["⁦108⁩","⁦21⁩","⁦117⁩","⁦76⁩"],0,20,0],["احسب ⁦(7 + 3) × 5⁩ ؟",["⁦55⁩","⁦15⁩","⁦22⁩","⁦50⁩"],3,20,0],["ما ناتج ⁦23 × 3⁩ ؟",["⁦59⁩","⁦79⁩","⁦92⁩","⁦69⁩"],3,20,0],["سعر سلعة 1500 دج ارتفع بنسبة 10%. ما السعر الجديد (بالدينار) ؟",["⁦1650⁩","⁦1510⁩","⁦150⁩","⁦1350⁩"],0,20,1],["سعر سلعة 1500 دج، طُبّق عليها تخفيض بنسبة 10%. ما السعر بعد التخفيض (بالدينار) ؟",["⁦1650⁩","⁦1490⁩","⁦1350⁩","⁦150⁩"],2,20,1],["سعر سلعة 4000 دج ارتفع بنسبة 20%. ما السعر الجديد (بالدينار) ؟",["⁦4020⁩","⁦3200⁩","⁦800⁩","⁦4800⁩"],3,20,1],["سعر سلعة 1000 دج، طُبّق عليها تخفيض بنسبة 50%. ما السعر بعد التخفيض (بالدينار) ؟",["⁦0⁩","⁦500⁩","⁦1500⁩","⁦950⁩"],1,20,1],["حصل تلميذ على 9 من 25 في اختبار. ما النسبة المئوية لعلامته ؟",["⁦9%⁩","⁦46%⁩","⁦36%⁩","⁦26%⁩"],2,20,1],["ما هو 40% من 60 ؟",["⁦24⁩","⁦13⁩","⁦64⁩","⁦48⁩"],0,20,1],["ما هو 5% من 400 ؟",["⁦40⁩","⁦11⁩","⁦25⁩","⁦20⁩"],3,20,1],["حصل تلميذ على 8 من 25 في اختبار. ما النسبة المئوية لعلامته ؟",["⁦8%⁩","⁦42%⁩","⁦22%⁩","⁦32%⁩"],3,20,1],["حصل تلميذ على 26 من 50 في اختبار. ما النسبة المئوية لعلامته ؟",["⁦42%⁩","⁦62%⁩","⁦26%⁩","⁦52%⁩"],3,20,1],["ما هو 60% من 240 ؟",["⁦204⁩","⁦73⁩","⁦144⁩","⁦288⁩"],2,20,1],["ما هو 60% من 40 ؟",["⁦84⁩","⁦48⁩","⁦13⁩","⁦24⁩"],3,20,1],["حصل تلميذ على 6 من 50 في اختبار. ما النسبة المئوية لعلامته ؟",["⁦12%⁩","⁦22%⁩","⁦6%⁩","⁦2%⁩"],0,20,1],["ما حل المعادلة ⁦3(x + 4) = 3⁩ ؟",["⁦1⁩","⁦3⁩","⁦-7⁩","⁦-3⁩"],3,20,2],["ما حل المعادلة ⁦9x + 2 = 2x + 9⁩ ؟",["⁦0⁩","⁦-1⁩","⁦1⁩","⁦2⁩"],2,20,2],["ما حل المعادلة ⁦x/5 + 4 = 5⁩ ؟",["⁦5⁩","⁦1⁩","⁦21⁩","⁦29⁩"],0,20,2],["ما حل المعادلة ⁦x/6 + 5 = 6⁩ ؟",["⁦6⁩","⁦31⁩","⁦41⁩","⁦1⁩"],0,20,2],["ما حل المعادلة ⁦5x - 15 = -30⁩ ؟",["⁦-3⁩","⁦-4⁩","⁦-2⁩","⁦3⁩"],0,20,2],["ما حل المعادلة ⁦7x - 5 = 6x - 13⁩ ؟",["⁦-8⁩","⁦-7⁩","⁦8⁩","⁦-9⁩"],0,20,2],["ما حل المعادلة ⁦2(x + 3) = 6⁩ ؟",["⁦3⁩","⁦0⁩","⁦1⁩","⁦-3⁩"],1,20,2],["ما حل المعادلة ⁦x/6 - 6 = -10⁩ ؟",["⁦-24⁩","⁦-54⁩","⁦-4⁩","⁦-66⁩"],0,20,2],["ما حل المعادلة ⁦2(x + 4) = -6⁩ ؟",["⁦-11⁩","⁦-3⁩","⁦-7⁩","⁦7⁩"],2,20,2],["ما حل المعادلة ⁦7x - 7 = 42⁩ ؟",["⁦7⁩","⁦6⁩","⁦8⁩","⁦-7⁩"],0,20,2],["ما حل المعادلة ⁦4(x - 2) = -32⁩ ؟",["⁦-6⁩","⁦6⁩","⁦-4⁩","⁦-8⁩"],0,20,2],["ما حل المعادلة ⁦3x - 7 = 1x - 9⁩ ؟",["⁦-2⁩","⁦-1⁩","⁦0⁩","⁦1⁩"],1,20,2],["ما حل المعادلة ⁦7x - 5 = 79⁩ ؟",["⁦13⁩","⁦-12⁩","⁦11⁩","⁦12⁩"],3,20,2],["ما حل المعادلة ⁦5x + 9 = 2x + 27⁩ ؟",["⁦7⁩","⁦-6⁩","⁦5⁩","⁦6⁩"],3,20,2],["ما حل المعادلة ⁦x/6 - 1 = 3⁩ ؟",["⁦4⁩","⁦17⁩","⁦19⁩","⁦24⁩"],3,20,2],["ما حل المعادلة ⁦2x - 6 = 2⁩ ؟",["⁦4⁩","⁦-4⁩","⁦5⁩","⁦3⁩"],0,20,2],["ما حل المعادلة ⁦x/5 + 9 = 8⁩ ؟",["⁦-5⁩","⁦31⁩","⁦49⁩","⁦-1⁩"],0,20,2],["ما حل المعادلة ⁦6(x - 6) = -66⁩ ؟",["⁦-5⁩","⁦-11⁩","⁦5⁩","⁦1⁩"],0,20,2],["ما حل المعادلة ⁦4x + 1 = -31⁩ ؟",["⁦8⁩","⁦-7⁩","⁦-8⁩","⁦-9⁩"],2,20,2],["ما حل المعادلة ⁦4x - 4 = 12⁩ ؟",["⁦-4⁩","⁦3⁩","⁦5⁩","⁦4⁩"],3,20,2],["ما قيمة ⁦√256⁩ ؟",["⁦16⁩","⁦32⁩","⁦17⁩","⁦15⁩"],0,20,3],["ما ناتج ⁦√45 × √20⁩ ؟",["⁦29⁩","⁦30⁩","⁦31⁩","⁦900⁩"],1,20,3],["ما قيمة ⁦2³⁩ ؟",["⁦6⁩","⁦4⁩","⁦16⁩","⁦8⁩"],3,20,3],["ما قيمة ⁦2⁵⁩ ؟",["⁦16⁩","⁦64⁩","⁦32⁩","⁦10⁩"],2,20,3],["ما قيمة ⁦57⁰⁩ ؟",["⁦0⁩","⁦1⁩","⁦57⁩","⁦-1⁩"],1,20,3],["ما قيمة ⁦12²⁩ ؟",["⁦12⁩","⁦24⁩","⁦144⁩","⁦1728⁩"],2,20,3],["ما قيمة ⁦√361⁩ ؟",["⁦20⁩","⁦19⁩","⁦38⁩","⁦18⁩"],1,20,3],["ما قيمة ⁦25⁰⁩ ؟",["⁦0⁩","⁦1⁩","⁦-1⁩","⁦25⁩"],1,20,3],["ما قيمة ⁦2¹⁰⁩ ؟",["⁦20⁩","⁦2048⁩","⁦1024⁩","⁦512⁩"],2,20,3],["ما ناتج ⁦5⁵ × 5⁴⁩ ؟ (اكتبه على شكل قوة)",["⁦5¹⁰⁩","⁦5⁹⁩","⁦5²⁰⁩","⁦25⁹⁩"],1,20,3],["ما قيمة ⁦√324⁩ ؟",["⁦18⁩","⁦36⁩","⁦17⁩","⁦19⁩"],0,20,3],["ما قيمة ⁦(-2)²⁩ ؟",["⁦5⁩","⁦4⁩","⁦-4⁩","⁦2⁩"],1,20,3],["ما قيمة ⁦2⁸⁩ ؟",["⁦128⁩","⁦256⁩","⁦16⁩","⁦512⁩"],1,20,3],["ما قيمة ⁦10²⁩ ؟",["⁦1000⁩","⁦20⁩","⁦100⁩","⁦10⁩"],2,20,3],["ما ناتج ⁦5³ × 5²⁩ ؟ (اكتبه على شكل قوة)",["⁦5¹⁩","⁦25⁵⁩","⁦5⁵⁩","⁦5⁶⁩"],2,20,3],["ما قيمة ⁦2⁶⁩ ؟",["⁦32⁩","⁦64⁩","⁦128⁩","⁦12⁩"],1,20,3],["ما قيمة ⁦√144⁩ ؟",["⁦13⁩","⁦11⁩","⁦12⁩","⁦24⁩"],2,20,3],["ما ناتج ⁦3² × 3⁵⁩ ؟ (اكتبه على شكل قوة)",["⁦3⁸⁩","⁦3¹⁰⁩","⁦9⁷⁩","⁦3⁷⁩"],3,20,3],["ما قيمة ⁦35⁰⁩ ؟",["⁦-1⁩","⁦35⁩","⁦1⁩","⁦0⁩"],2,20,3],["ما قيمة ⁦(-7)²⁩ ؟",["⁦49⁩","⁦-14⁩","⁦14⁩","⁦-49⁩"],0,20,3],["احسب ⁦1/7 × 4/3⁩ ؟",["⁦4/21⁩","⁦5/21⁩","⁦3/28⁩","⁦31/21⁩"],0,20,4],["اختصر الكسر ⁦2/14⁩ إلى أبسط صورة",["⁦2/7⁩","⁦7⁩","⁦1/7⁩","⁦1/8⁩"],2,20,4],["اختصر الكسر ⁦4/12⁩ إلى أبسط صورة",["⁦2/3⁩","⁦4/3⁩","⁦1/3⁩","⁦1/4⁩"],2,20,4],["احسب ⁦3/8 × 5/7⁩ ؟",["⁦61/56⁩","⁦21/40⁩","⁦15/56⁩","⁦2/7⁩"],2,20,4],["احسب ⁦(3/4) ÷ (2/9)⁩ ؟",["⁦1/6⁩","⁦27/8⁩","⁦7/2⁩","⁦8/27⁩"],1,20,4],["احسب ⁦(3/7) ÷ (1/8)⁩ ؟",["⁦25/7⁩","⁦24/7⁩","⁦3/56⁩","⁦7/24⁩"],1,20,4],["اختصر الكسر ⁦10/35⁩ إلى أبسط صورة",["⁦1/4⁩","⁦10/7⁩","⁦3/7⁩","⁦2/7⁩"],3,20,4],["احسب ⁦2/3 + 3/7⁩ ؟",["⁦2/7⁩","⁦5/21⁩","⁦23/21⁩","⁦1/2⁩"],2,20,4],["اختصر الكسر ⁦30/42⁩ إلى أبسط صورة",["⁦6/7⁩","⁦5/8⁩","⁦5/7⁩","⁦30/7⁩"],2,20,4],["اختصر الكسر ⁦2/16⁩ إلى أبسط صورة",["⁦1/8⁩","⁦8⁩","⁦1/9⁩","⁦1/4⁩"],0,20,4],["احسب ⁦2/5 + 4/7⁩ ؟",["⁦1/2⁩","⁦34/35⁩","⁦6/35⁩","⁦8/35⁩"],1,20,4],["اختصر الكسر ⁦30/48⁩ إلى أبسط صورة",["⁦5/9⁩","⁦5/8⁩","⁦3/4⁩","⁦15/4⁩"],1,20,4],["اختصر الكسر ⁦20/15⁩ إلى أبسط صورة",["⁦20/3⁩","⁦5/3⁩","⁦4/3⁩","⁦1⁩"],2,20,4],["اختصر الكسر ⁦8/12⁩ إلى أبسط صورة",["⁦1⁩","⁦8/3⁩","⁦1/2⁩","⁦2/3⁩"],3,20,4],["احسب ⁦1/9 × 2/5⁩ ؟",["⁦5/18⁩","⁦23/45⁩","⁦1/15⁩","⁦2/45⁩"],3,20,4],["ما مساحة قرص نصف قطره 5 سم بـ سم² ؟ (بدلالة π)",["⁦10π⁩","⁦5π⁩","⁦25π⁩","⁦50π⁩"],2,20,5],["مربع طول ضلعه 11 سم. ما مساحته بـ سم² ؟",["⁦44⁩","⁦121⁩","⁦22⁩","⁦132⁩"],1,20,5],["ما مساحة قرص نصف قطره 11 سم بـ سم² ؟ (بدلالة π)",["⁦121π⁩","⁦242π⁩","⁦22π⁩","⁦11π⁩"],0,20,5],["زاويتان متتامتان قياس إحداهما 28°. ما قياس الأخرى بالدرجات ؟",["⁦62⁩","⁦152⁩","⁦118⁩","⁦28⁩"],0,20,5],["زاويتان متكاملتان قياس إحداهما 28°. ما قياس الأخرى بالدرجات ؟",["⁦152⁩","⁦62⁩","⁦332⁩","⁦28⁩"],0,20,5],["مربع طول ضلعه 7 سم. ما مساحته بـ سم² ؟",["⁦49⁩","⁦14⁩","⁦28⁩","⁦56⁩"],0,20,5],["مربع طول ضلعه 5 سم. ما مساحته بـ سم² ؟",["⁦10⁩","⁦30⁩","⁦25⁩","⁦20⁩"],2,20,5],["في مثلث زاويتان قياسهما 61° و 59°. ما قياس الزاوية الثالثة بالدرجات ؟",["⁦240⁩","⁦120⁩","⁦119⁩","⁦60⁩"],3,20,5],["مثلث قائم الزاوية طولا ضلعيه القائمين 15 سم و 36 سم. ما طول وتره بـ سم ؟",["⁦40⁩","⁦51⁩","⁦39⁩","⁦38⁩"],2,30,5],["ما محيط دائرة نصف قطرها 12 سم ؟ (بدلالة π)",["⁦48π⁩","⁦12π⁩","⁦144π⁩","⁦24π⁩"],3,20,5],["مربع طول ضلعه 14 سم. ما مساحته بـ سم² ؟",["⁦210⁩","⁦196⁩","⁦28⁩","⁦56⁩"],1,20,5],["مستطيل طوله 8 سم وعرضه 4 سم. ما مساحته بـ سم² ؟",["⁦32⁩","⁦24⁩","⁦12⁩","⁦40⁩"],0,20,5],["مثلث طول قاعدته 6 سم والارتفاع المتعلق بها 9 سم. ما مساحته بـ سم² ؟",["⁦15⁩","⁦33⁩","⁦54⁩","⁦27⁩"],3,20,5],["مثلث طول قاعدته 10 سم والارتفاع المتعلق بها 13 سم. ما مساحته بـ سم² ؟",["⁦75⁩","⁦23⁩","⁦130⁩","⁦65⁩"],3,20,5],["في مثلث زاويتان قياسهما 66° و 47°. ما قياس الزاوية الثالثة بالدرجات ؟",["⁦114⁩","⁦113⁩","⁦247⁩","⁦67⁩"],3,20,5],["مثلث قائم الزاوية طولا ضلعيه القائمين 21 سم و 72 سم. ما طول وتره بـ سم ؟",["⁦76⁩","⁦74⁩","⁦93⁩","⁦75⁩"],3,30,5],["زاويتان متتامتان قياس إحداهما 35°. ما قياس الأخرى بالدرجات ؟",["⁦125⁩","⁦35⁩","⁦55⁩","⁦145⁩"],2,20,5],["زاويتان متتامتان قياس إحداهما 30°. ما قياس الأخرى بالدرجات ؟",["⁦30⁩","⁦120⁩","⁦60⁩","⁦150⁩"],2,20,5],["مكعب طول حرفه 8 سم. ما حجمه بـ سم³ ؟",["⁦64⁩","⁦384⁩","⁦512⁩","⁦24⁩"],2,20,5],["ما مساحة قرص نصف قطره 4 سم بـ سم² ؟ (بدلالة π)",["⁦8π⁩","⁦16π⁩","⁦4π⁩","⁦32π⁩"],1,20,5],["في مثلث زاويتان قياسهما 20° و 50°. ما قياس الزاوية الثالثة بالدرجات ؟",["⁦70⁩","⁦160⁩","⁦290⁩","⁦110⁩"],3,20,5],["ما محيط دائرة نصف قطرها 4 سم ؟ (بدلالة π)",["⁦4π⁩","⁦32π⁩","⁦8π⁩","⁦16π⁩"],2,20,5],["مثلث قائم الزاوية طول وتره 50 سم وأحد ضلعيه القائمين 14 سم. ما طول الضلع القائم الآخر بـ سم ؟",["⁦48⁩","⁦49⁩","⁦47⁩","⁦36⁩"],0,30,5],["زاويتان متكاملتان قياس إحداهما 85°. ما قياس الأخرى بالدرجات ؟",["⁦95⁩","⁦85⁩","⁦275⁩","⁦5⁩"],0,20,5],["مثلث قائم الزاوية طول وتره 87 سم وأحد ضلعيه القائمين 60 سم. ما طول الضلع القائم الآخر بـ سم ؟",["⁦63⁩","⁦62⁩","⁦64⁩","⁦27⁩"],0,30,5],["ما هما حلا المعادلة ⁦x² + 13x + 42 = 0⁩ ؟",["⁦{-6 ; 7}⁩","⁦{-7 ; 6}⁩","⁦{-7 ; -6}⁩","⁦{6 ; 7}⁩"],2,30,6],["ما هما حلا المعادلة ⁦x² + x - 20 = 0⁩ ؟",["⁦{-4 ; 5}⁩","⁦{-5 ; -4}⁩","⁦{4 ; 5}⁩","⁦{-5 ; 4}⁩"],3,30,6],["ما هما حلا المعادلة ⁦x² + 12x + 32 = 0⁩ ؟",["⁦{-8 ; 4}⁩","⁦{-8 ; -4}⁩","⁦{4 ; 8}⁩","⁦{-4 ; 8}⁩"],1,30,6],["ما هما حلا المعادلة ⁦x² + 9x + 18 = 0⁩ ؟",["⁦{-6 ; 3}⁩","⁦{-6 ; -3}⁩","⁦{3 ; 6}⁩","⁦{-3 ; 6}⁩"],1,30,6],["ما هما حلا المعادلة ⁦x² - 2x - 48 = 0⁩ ؟",["⁦{-6 ; 8}⁩","⁦{-8 ; -6}⁩","⁦{6 ; 8}⁩","⁦{-8 ; 6}⁩"],0,30,6],["ما قيمة المميز Δ للمعادلة ⁦3x² - 4x - 2 = 0⁩ ؟",["⁦16⁩","⁦20⁩","⁦-8⁩","⁦40⁩"],3,30,6],["ما قيمة المميز Δ للمعادلة ⁦3x² + 6x + 5 = 0⁩ ؟",["⁦-48⁩","⁦96⁩","⁦-24⁩","⁦-54⁩"],2,30,6],["ما قيمة المميز Δ للمعادلة ⁦3x² + 2x - 6 = 0⁩ ؟",["⁦74⁩","⁦40⁩","⁦-68⁩","⁦76⁩"],3,30,6],["ما قيمة المميز Δ للمعادلة ⁦2x² - 2x + 6 = 0⁩ ؟",["⁦-44⁩","⁦-50⁩","⁦-52⁩","⁦52⁩"],0,30,6],["ما قيمة المميز Δ للمعادلة ⁦3x² + 4x + 1 = 0⁩ ؟",["⁦-4⁩","⁦4⁩","⁦-8⁩","⁦28⁩"],1,30,6],["كم عدد حلول المعادلة ⁦x² - 10x + 25 = 0⁩ في ℝ ؟",["حل مضاعف (وحيد)","لا يوجد حل حقيقي","ثلاثة حلول","حلان مختلفان"],0,30,6],["كم عدد حلول المعادلة ⁦x² + 5x + 6 = 0⁩ في ℝ ؟",["حل مضاعف (وحيد)","حلان مختلفان","لا يوجد حل حقيقي","ثلاثة حلول"],1,30,6],["كم عدد حلول المعادلة ⁦x² - 4x + 7 = 0⁩ في ℝ ؟",["لا يوجد حل حقيقي","حلان مختلفان","ثلاثة حلول","حل مضاعف (وحيد)"],0,30,6],["ما مجموع حلّي المعادلة ⁦x² - x - 6 = 0⁩ ؟",["⁦-6⁩","⁦1⁩","⁦6⁩","⁦-1⁩"],1,30,6],["ما جداء حلّي المعادلة ⁦x² - 10x + 24 = 0⁩ ؟",["⁦-10⁩","⁦10⁩","⁦24⁩","⁦-24⁩"],2,30,6],["إذا كانت ⁦f(x) = x - 9⁩ فما قيمة ⁦f(-1)⁩ ؟",["⁦-8⁩","⁦-10⁩","⁦8⁩","⁦-9⁩"],1,20,7],["إذا كانت ⁦f(x) = -3x + 7⁩ فما قيمة ⁦f(0)⁩ ؟",["⁦7⁩","⁦4⁩","⁦-7⁩","⁦0⁩"],0,20,7],["إذا كانت ⁦f(x) = -3x - 8⁩ فما قيمة ⁦f(-1)⁩ ؟",["⁦-11⁩","⁦-5⁩","⁦-12⁩","⁦11⁩"],1,20,7],["إذا كانت ⁦f(x) = 6x + 5⁩ فما قيمة ⁦f(4)⁩ ؟",["⁦44⁩","⁦15⁩","⁦29⁩","⁦19⁩"],2,20,7],["إذا كانت ⁦f(x) = -5x - 7⁩ فما قيمة ⁦f(-2)⁩ ؟",["⁦24⁩","⁦3⁩","⁦-14⁩","⁦17⁩"],1,20,7],["إذا كانت ⁦f(x) = -5x - 8⁩ فما قيمة ⁦f(3)⁩ ؟",["⁦-10⁩","⁦-23⁩","⁦-7⁩","⁦-39⁩"],1,20,7],["إذا كانت ⁦f(x) = 3x² + 4x + 8⁩ فما قيمة ⁦f(0)⁩ ؟",["⁦7⁩","⁦9⁩","⁦11⁩","⁦8⁩"],3,30,7],["إذا كانت ⁦f(x) = x² + 2x + 4⁩ فما قيمة ⁦f(4)⁩ ؟",["⁦-4⁩","⁦12⁩","⁦28⁩","⁦20⁩"],2,30,7],["إذا كانت ⁦f(x) = x² + 2x - 6⁩ فما قيمة ⁦f(4)⁩ ؟",["⁦18⁩","⁦2⁩","⁦10⁩","⁦-14⁩"],0,30,7],["إذا كانت ⁦f(x) = x² + 2x - 2⁩ فما قيمة ⁦f(2)⁩ ؟",["⁦5⁩","⁦-2⁩","⁦7⁩","⁦6⁩"],3,30,7],["ما ميل المستقيم المار بالنقطتين ⁦A(-3 , 0)⁩ و ⁦B(-2 , 2)⁩ ؟",["⁦3⁩","⁦2⁩","⁦1/2⁩","⁦-2⁩"],1,30,7],["ما ميل المستقيم المار بالنقطتين ⁦A(4 , 8)⁩ و ⁦B(6 , 16)⁩ ؟",["⁦5⁩","⁦-4⁩","⁦1/4⁩","⁦4⁩"],3,30,7],["ما ميل المستقيم المار بالنقطتين ⁦A(1 , 2)⁩ و ⁦B(3 , 12)⁩ ؟",["⁦6⁩","⁦1/5⁩","⁦5⁩","⁦-5⁩"],2,30,7],["ما هي الدالة المشتقة ⁦f′(x)⁩ للدالة ⁦f(x) = 4x³ - 5x² + 5x + 1⁩ ؟",["⁦12x³ - 10x² + 5x + 1⁩","⁦4x² - 5x + 5⁩","⁦12x² - 10x⁩","⁦12x² - 10x + 5⁩"],3,30,7],["ما هي الدالة المشتقة ⁦f′(x)⁩ للدالة ⁦f(x) = 3x³ - 5x² + 5x + 4⁩ ؟",["⁦9x² - 10x + 5⁩","⁦3x² - 5x + 5⁩","⁦9x² - 10x⁩","⁦9x³ - 10x² + 5x + 4⁩"],0,30,7],["ما هي الدالة المشتقة ⁦f′(x)⁩ للدالة ⁦f(x) = 2x³ - 5x² - 3x - 2⁩ ؟",["⁦6x² - 10x⁩","⁦6x³ - 10x² - 3x - 2⁩","⁦6x² - 10x - 3⁩","⁦2x² - 5x - 3⁩"],2,30,7],["ما هي الدالة المشتقة ⁦f′(x)⁩ للدالة ⁦f(x) = x³ - x² + 5x - 4⁩ ؟",["⁦x² - x + 5⁩","⁦3x³ - 2x² + 5x - 4⁩","⁦3x² - 2x⁩","⁦3x² - 2x + 5⁩"],3,30,7],["إذا كانت ⁦f(x) = 2x² + 4x + 7⁩ فما قيمة ⁦f′(-1)⁩ ؟",["⁦7⁩","⁦-4⁩","⁦2⁩","⁦0⁩"],3,30,7],["إذا كانت ⁦f(x) = 2x² - 6x + 8⁩ فما قيمة ⁦f′(1)⁩ ؟",["⁦-4⁩","⁦4⁩","⁦-2⁩","⁦6⁩"],2,30,7],["إذا كانت ⁦f(x) = x² + x + 1⁩ فما قيمة ⁦f′(-1)⁩ ؟",["⁦-2⁩","⁦0⁩","⁦2⁩","⁦-1⁩"],3,30,7],["متتالية حسابية حدها الأول 15 وأساسها 3. ما هو الحد رقم 9 ؟",["⁦42⁩","⁦27⁩","⁦39⁩","⁦36⁩"],2,20,8],["متتالية حسابية حدها الأول 3 وأساسها 8. ما هو الحد رقم 12 ؟",["⁦99⁩","⁦96⁩","⁦83⁩","⁦91⁩"],3,20,8],["متتالية حسابية حدها الأول 9 وأساسها 9. ما هو الحد رقم 14 ؟",["⁦135⁩","⁦31⁩","⁦117⁩","⁦126⁩"],3,20,8],["متتالية حسابية حدها الأول 6 وأساسها 3. ما هو الحد رقم 8 ؟",["⁦16⁩","⁦27⁩","⁦30⁩","⁦24⁩"],1,20,8],["متتالية حسابية حدها الأول 7 وأساسها 3. ما مجموع حدودها الـ 16 الأولى ؟",["⁦472⁩","⁦469⁩","⁦944⁩","⁦488⁩"],0,30,8],["متتالية حسابية حدها الأول 9 وأساسها 5. ما مجموع حدودها الـ 12 الأولى ؟",["⁦876⁩","⁦450⁩","⁦438⁩","⁦433⁩"],2,30,8],["متتالية حسابية حدها الأول 5 وأساسها 4. ما مجموع حدودها الـ 20 الأولى ؟",["⁦856⁩","⁦860⁩","⁦1720⁩","⁦880⁩"],1,30,8],["متتالية هندسية حدها الأول 1 وأساسها 2. ما هو الحد رقم 5 ؟",["⁦9⁩","⁦32⁩","⁦16⁩","⁦8⁩"],2,30,8],["متتالية هندسية حدها الأول 4 وأساسها 3. ما هو الحد رقم 6 ؟",["⁦324⁩","⁦2916⁩","⁦19⁩","⁦972⁩"],3,30,8],["متتالية هندسية حدها الأول 5 وأساسها 3. ما هو الحد رقم 6 ؟",["⁦1215⁩","⁦405⁩","⁦20⁩","⁦3645⁩"],0,30,8],["ما الحد التالي في المتتالية : ⁦9, 13, 17, 21, ...⁩ ؟",["⁦29⁩","⁦24⁩","⁦26⁩","⁦25⁩"],3,20,8],["ما الحد التالي في المتتالية : ⁦3, 9, 27, 81, ...⁩ ؟",["⁦246⁩","⁦135⁩","⁦240⁩","⁦243⁩"],3,20,8],["ما المتوسط الحسابي للأعداد : ⁦13, 9, 19, 20, 14⁩ ؟",["⁦14⁩","⁦16⁩","⁦15⁩","⁦20⁩"],2,20,9],["ما المتوسط الحسابي للأعداد : ⁦11, 10, 15, 5, 9⁩ ؟",["⁦10⁩","⁦9⁩","⁦11⁩","⁦15⁩"],0,20,9],["ما المتوسط الحسابي للأعداد : ⁦20, 11, 9, 18, 7⁩ ؟",["⁦20⁩","⁦14⁩","⁦12⁩","⁦13⁩"],3,20,9],["ما المتوسط الحسابي للأعداد : ⁦11, 5, 9, 2, 8⁩ ؟",["⁦8⁩","⁦6⁩","⁦7⁩","⁦11⁩"],2,20,9],["ما وسيط السلسلة الإحصائية : ⁦22, 11, 13, 21, 14⁩ ؟",["⁦13⁩","⁦21⁩","⁦22⁩","⁦14⁩"],3,20,9],["ما وسيط السلسلة الإحصائية : ⁦12, 28, 27, 14, 25⁩ ؟",["⁦14⁩","⁦27⁩","⁦28⁩","⁦25⁩"],3,20,9],["ما وسيط السلسلة الإحصائية : ⁦12, 1, 25, 29, 13, 24, 26⁩ ؟",["⁦24⁩","⁦13⁩","⁦25⁩","⁦29⁩"],0,20,9],["ما منوال السلسلة : ⁦15, 12, 14, 10, 12, 2, 12⁩ ؟",["⁦14⁩","⁦2⁩","⁦15⁩","⁦12⁩"],3,20,9],["ما منوال السلسلة : ⁦10, 9, 7, 1, 10, 4, 10⁩ ؟",["⁦1⁩","⁦7⁩","⁦9⁩","⁦10⁩"],3,20,9],["ما مدى السلسلة : ⁦19, 9, 7, 27, 15, 8⁩ ؟",["⁦34⁩","⁦7⁩","⁦20⁩","⁦27⁩"],2,20,9],["ما مدى السلسلة : ⁦38, 48, 47, 25, 3, 9⁩ ؟",["⁦51⁩","⁦48⁩","⁦3⁩","⁦45⁩"],3,20,9],["عند رمي نرد متوازن مرة واحدة، ما احتمال الحصول على عدد زوجي ؟",["⁦1/3⁩","⁦1/2⁩","⁦1/6⁩","⁦2/3⁩"],1,20,9],["عند رمي نرد متوازن مرة واحدة، ما احتمال الحصول على عدد أكبر من 4 ؟",["⁦1/6⁩","⁦2/3⁩","⁦1/2⁩","⁦1/3⁩"],3,20,9],["كيس يحتوي على 5 كرات حمراء و 4 كرات زرقاء. نسحب كرة واحدة عشوائياً. ما احتمال أن تكون حمراء ؟",["⁦1/9⁩","⁦4/9⁩","⁦5/9⁩","⁦5/4⁩"],2,30,9],["كيس يحتوي على 6 كرات حمراء و 5 كرات زرقاء. نسحب كرة واحدة عشوائياً. ما احتمال أن تكون حمراء ؟",["⁦1/11⁩","⁦6/5⁩","⁦6/11⁩","⁦5/11⁩"],2,30,9],["انشر ⁦(x - 8)²⁩ ؟",["⁦x² - 8x + 64⁩","⁦x² + 64⁩","⁦x² + 16x + 64⁩","⁦x² - 16x + 64⁩"],3,30,10],["انشر ⁦(x - 2)²⁩ ؟",["⁦x² + 4x + 4⁩","⁦x² - 2x + 4⁩","⁦x² - 4x + 4⁩","⁦x² + 4⁩"],2,30,10],["انشر ⁦(x - 5)(x + 5)⁩ ؟",["⁦x² + 25⁩","⁦x² - 5x - 25⁩","⁦x² - 25⁩","⁦x² + 10x - 25⁩"],2,30,10],["انشر ⁦(x - 10)(x + 10)⁩ ؟",["⁦x² + 20x - 100⁩","⁦x² - 100⁩","⁦x² + 100⁩","⁦x² - 10x - 100⁩"],1,30,10],["انشر ⁦(x + 5)(x + 4)⁩ ؟",["⁦x² - 9x + 20⁩","⁦x² + 9x + 20⁩","⁦x² + 9x - 20⁩","⁦x² + 20⁩"],1,30,10],["انشر ⁦(x - 4)(x - 1)⁩ ؟",["⁦x² - 5x + 4⁩","⁦x² + 4⁩","⁦x² + 5x + 4⁩","⁦x² - 5x - 4⁩"],0,30,10],["حلّل العبارة ⁦x² - 9x + 14⁩ ؟",["⁦(x + 7)(x - 2)⁩","⁦(x - 7)(x - 2)⁩","⁦(x - 7)(x + 2)⁩","⁦(x + 7)(x + 2)⁩"],1,30,10],["حلّل العبارة ⁦x² - 6x + 8⁩ ؟",["⁦(x - 4)(x - 2)⁩","⁦(x - 4)(x + 2)⁩","⁦(x + 4)(x + 2)⁩","⁦(x + 4)(x - 2)⁩"],0,30,10],["احسب ⁦59 × 61⁩ باستعمال المتطابقات الشهيرة",["⁦3598⁩","⁦3599⁩","⁦3601⁩","⁦3600⁩"],1,30,10],["احسب ⁦69 × 71⁩ باستعمال المتطابقات الشهيرة",["⁦4900⁩","⁦4901⁩","⁦4899⁩","⁦4898⁩"],2,30,10],["ما قيمة ⁦sin 30°⁩ ؟",["⁦1/2⁩","⁦0⁩","⁦1⁩","⁦√3/2⁩"],0,20,11],["ما قيمة ⁦cos 60°⁩ ؟",["⁦√2/2⁩","⁦0⁩","⁦1/2⁩","⁦√3/3⁩"],2,20,11],["ما قيمة ⁦sin 45°⁩ ؟",["⁦√2/2⁩","⁦1⁩","⁦√3/2⁩","⁦√3/3⁩"],0,20,11],["ما قيمة ⁦cos 30°⁩ ؟",["⁦√3/2⁩","⁦0⁩","⁦√3⁩","⁦-1⁩"],0,20,11],["ما قيمة ⁦tan 45°⁩ ؟",["⁦√2/2⁩","⁦-1⁩","⁦1⁩","⁦√3⁩"],2,20,11],["ما قيمة ⁦tan 60°⁩ ؟",["⁦1/2⁩","⁦√3/3⁩","⁦√3⁩","⁦-1⁩"],2,20,11],["ما قيمة ⁦cos 180°⁩ ؟",["⁦√2/2⁩","⁦1⁩","⁦-1⁩","⁦√3⁩"],2,20,11],["ما قيمة ⁦sin 90°⁩ ؟",["⁦√3/2⁩","⁦-1⁩","⁦√3/3⁩","⁦1⁩"],3,20,11],["ما حل المتراجحة ⁦6x - 1 > 29⁩ ؟",["⁦x < 5⁩","⁦x > -5⁩","⁦x > 5⁩","⁦x < -5⁩"],2,30,12],["ما حل المتراجحة ⁦5x + 5 > 30⁩ ؟",["⁦x > 5⁩","⁦x < 5⁩","⁦x > -5⁩","⁦x < -5⁩"],0,30,12],["ما حل المتراجحة ⁦6x + 8 ≥ -4⁩ ؟",["⁦x ≥ 2⁩","⁦x ≤ -2⁩","⁦x ≤ 2⁩","⁦x ≥ -2⁩"],3,30,12],["ما حل المتراجحة ⁦2x - 7 > -5⁩ ؟",["⁦x < -1⁩","⁦x > -1⁩","⁦x < 1⁩","⁦x > 1⁩"],3,30,12],["ما حل المتراجحة ⁦-5x + 3 > 28⁩ ؟",["⁦x > 5⁩","⁦x < -5⁩","⁦x > -5⁩","⁦x < 5⁩"],1,30,12],["ما حل المتراجحة ⁦-5x - 2 ≥ 13⁩ ؟",["⁦x ≤ 3⁩","⁦x ≥ -3⁩","⁦x ≤ -3⁩","⁦x ≥ 3⁩"],2,30,12],["ما حل المتراجحة ⁦-2x + 8 ≤ 20⁩ ؟",["⁦x ≥ -6⁩","⁦x ≤ 6⁩","⁦x ≤ -6⁩","⁦x ≥ 6⁩"],0,30,12],["ما حل المتراجحة ⁦-3x + 1 < 10⁩ ؟",["⁦x < -3⁩","⁦x > -3⁩","⁦x < 3⁩","⁦x > 3⁩"],1,30,12]];
+/*MATH_BANK_END*/
+
+/* ---------------- Global state ---------------- */
+let host = null;    // host session
+let player = null;  // player session
+
+function brand(small) {
+  return `<div class="text-center ${small ? 'py-3' : 'py-6'}">
+    <div class="inline-flex items-center gap-3 bg-white/10 border border-white/25 rounded-2xl px-5 py-2">
+      <span class="inline-flex gap-1">${COLORS.map((c, i) => `<span class="w-4 h-4 inline-block" style="background:${c};border-radius:${i === 2 ? '50%' : i === 3 ? '2px' : '3px'};${i === 1 ? 'transform:rotate(45deg) scale(.85)' : ''}"></span>`).join('')}</span>
+      <span class="font-black text-2xl ltr">Brahim Machet K</span>
+    </div></div>`;
+}
+
+/* ============================================================
+   HOME
+   ============================================================ */
+function renderHome() {
+  cleanup();
+  app(`<div class="max-w-xl mx-auto p-5">
+    ${brand()}
+    <div class="grid gap-4 mt-4">
+      <button onclick="renderEditor()" class="btn bg-white text-purple-900 text-xl py-5">🎛️ إنشاء مسابقة / Host</button>
+      <button onclick="renderJoin()" class="btn bg-[#26890c] text-white text-xl py-5">🎮 الانضمام للعبة / Join</button>
+    </div>
+    <p class="text-center text-white/70 mt-8 text-sm">منصة مسابقات تفاعلية مباشرة — أنشئ أسئلتك، شارك الرمز أو QR، ودع اللاعبين يتنافسون.</p>
+  </div>`);
+}
+
+/* ============================================================
+   EDITOR (Host / Admin)
+   ============================================================ */
+function qCard(q, i) {
+  return `<div class="card p-4 mb-4 pop">
+    <div class="flex items-center justify-between mb-2">
+      <span class="font-black text-lg text-purple-800">السؤال ${i + 1}</span>
+      <div class="flex gap-2">
+        <button onclick="dupQ(${i})" class="text-sm bg-purple-100 text-purple-800 rounded-lg px-3 py-1 font-bold">نسخ</button>
+        <button onclick="delQ(${i})" class="text-sm bg-red-100 text-red-700 rounded-lg px-3 py-1 font-bold">حذف</button>
+      </div>
+    </div>
+    <textarea rows="2" placeholder="اكتب السؤال هنا…" oninput="setQ(${i},'q',this.value)"
+      class="w-full border-2 border-purple-200 rounded-xl p-3 font-bold focus:outline-none focus:border-purple-600">${esc(q.q)}</textarea>
+    <div class="grid sm:grid-cols-2 gap-2 mt-3">
+      ${[0, 1, 2, 3].map(j => `
+        <label class="flex items-center gap-2 rounded-xl p-2 text-white" style="background:${COLORS[j]}">
+          <span class="w-7 h-7 shrink-0">${SHAPE_SVG[j]}</span>
+          <input type="text" value="${esc(q.opts[j])}" placeholder="الخيار ${j + 1}${j > 1 ? ' (اختياري)' : ''}"
+            oninput="setOpt(${i},${j},this.value)" class="flex-1 min-w-0 rounded-lg px-2 py-1.5 font-semibold focus:outline-none">
+          <span class="flex items-center gap-1 text-xs font-bold bg-black/25 rounded-lg px-2 py-1 cursor-pointer">
+            <input type="radio" name="correct-${i}" ${q.correct === j ? 'checked' : ''} onchange="setCorrect(${i},${j})"> صحيح
+          </span>
+        </label>`).join('')}
+    </div>
+    <div class="mt-3 flex items-center gap-2">
+      <span class="font-bold text-sm">⏱️ الوقت:</span>
+      <select onchange="setTime(${i},this.value)" class="border-2 border-purple-200 rounded-lg px-2 py-1 font-bold">
+        ${[5, 10, 15, 20, 30, 45, 60, 90, 120].map(t => `<option value="${t}" ${q.time === t ? 'selected' : ''}>${t} ثانية</option>`).join('')}
+      </select>
+    </div>
+  </div>`;
+}
+function renderEditor() {
+  cleanup();
+  app(`<div class="max-w-3xl mx-auto p-4 pb-40">
+    ${brand(true)}
+    <div class="card p-4 mb-4 flex flex-wrap items-center gap-3">
+      <input id="title" type="text" value="${esc(quiz.title)}" placeholder="عنوان المسابقة"
+        oninput="quiz.title=this.value;saveQuiz()"
+        class="flex-1 min-w-[200px] border-2 border-purple-200 rounded-xl p-3 font-black text-lg focus:outline-none focus:border-purple-600">
+      <button onclick="exportQuiz()" class="btn bg-purple-100 text-purple-800 text-sm">⬇️ تصدير JSON</button>
+      <label class="btn bg-purple-100 text-purple-800 text-sm cursor-pointer">⬆️ استيراد
+        <input type="file" accept=".json,application/json" class="hidden" onchange="importQuiz(this)"></label>
+    </div>
+    <div class="card p-4 mb-4">
+      <div class="font-black text-lg text-purple-800 mb-1">📚 بنك أسئلة الرياضيات (${MATH_BANK.length} سؤال)</div>
+      <div class="text-sm text-purple-600 mb-3">كل سؤال بأربعة اختيارات وإجابة صحيحة واحدة. اختر الموضوع والعدد ثم أضفها إلى مسابقتك.</div>
+      <div class="flex flex-wrap items-center gap-2">
+        <select id="bankTopic" class="border-2 border-purple-200 rounded-lg px-2 py-2 font-bold">
+          <option value="-1">كل المواضيع (${MATH_BANK.length})</option>
+          ${MATH_TOPICS.map((t, i) => `<option value="${i}">${t} (${MATH_BANK.filter(b => b[4] === i).length})</option>`).join('')}
+        </select>
+        <input id="bankN" type="number" min="1" max="200" value="10" class="w-20 border-2 border-purple-200 rounded-lg px-2 py-2 font-bold text-center">
+        <label class="flex items-center gap-1 text-sm font-bold text-purple-800"><input id="bankReplace" type="checkbox"> استبدال الأسئلة الحالية</label>
+        <button onclick="addFromBank(false)" class="btn bg-purple-700 text-white text-sm">➕ إضافة عشوائية</button>
+        <button onclick="addFromBank(true)" class="btn bg-[#1368ce] text-white text-sm">إضافة كل أسئلة الموضوع</button>
+      </div>
+    </div>
+    <div id="qlist">${quiz.questions.map(qCard).join('')}</div>
+  </div>
+  <div class="fixed bottom-0 inset-x-0 bg-[#2d0f5e]/95 backdrop-blur border-t border-white/20 p-3">
+    <div class="max-w-3xl mx-auto flex gap-3 justify-between">
+      <button onclick="renderHome()" class="btn bg-white/15 text-white">← رجوع</button>
+      <button onclick="addQ()" class="btn bg-white text-purple-900 flex-1">➕ إضافة سؤال</button>
+      <button onclick="startHosting()" class="btn bg-[#26890c] text-white flex-1">🚀 إنشاء اللعبة / Launch Game</button>
+    </div>
+  </div>`);
+}
+function addFromBank(all) {
+  const tp = +$('bankTopic').value, replace = $('bankReplace').checked;
+  let pool = MATH_BANK.filter(b => tp < 0 || b[4] === tp);
+  if (!replace) { const have = new Set(quiz.questions.map(x => x.q)); pool = pool.filter(b => !have.has(b[0])); }
+  if (!pool.length) return toast('لا توجد أسئلة جديدة متاحة في هذا الموضوع');
+  for (let i = pool.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [pool[i], pool[j]] = [pool[j], pool[i]]; }
+  const n = all ? pool.length : Math.max(1, Math.min(pool.length, parseInt($('bankN').value) || 10));
+  const picked = pool.slice(0, n).map(b => ({ q: b[0], opts: b[1].slice(), correct: b[2], time: b[3] }));
+  if (replace) { if (!confirm('سيتم حذف الأسئلة الحالية واستبدالها. متابعة؟')) return; quiz.questions = picked; }
+  else quiz.questions.push(...picked);
+  saveQuiz(); renderEditor(); toast(`تمت إضافة ${picked.length} سؤال ✅`);
+}
+function setQ(i, k, v) { quiz.questions[i][k] = v; saveQuiz(); }
+function setOpt(i, j, v) { quiz.questions[i].opts[j] = v; saveQuiz(); }
+function setCorrect(i, j) { quiz.questions[i].correct = j; saveQuiz(); }
+function setTime(i, v) { quiz.questions[i].time = +v; saveQuiz(); }
+function addQ() { quiz.questions.push({ q: '', opts: ['', '', '', ''], correct: 0, time: 20 }); saveQuiz(); renderEditor(); setTimeout(() => window.scrollTo(0, document.body.scrollHeight), 50); }
+function delQ(i) {
+  if (quiz.questions.length === 1) return toast('يجب أن تحتوي المسابقة على سؤال واحد على الأقل');
+  quiz.questions.splice(i, 1); saveQuiz(); renderEditor();
+}
+function dupQ(i) { quiz.questions.splice(i + 1, 0, JSON.parse(JSON.stringify(quiz.questions[i]))); saveQuiz(); renderEditor(); }
+function exportQuiz() {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([JSON.stringify(quiz, null, 2)], { type: 'application/json' }));
+  a.download = 'quiz-brahim-machet-k.json'; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+function importQuiz(input) {
+  const f = input.files[0]; if (!f) return;
+  const r = new FileReader();
+  r.onload = () => {
+    try {
+      const d = JSON.parse(r.result);
+      if (!d || !Array.isArray(d.questions) || !d.questions.length) throw 0;
+      quiz = {
+        title: String(d.title || 'مسابقة'),
+        questions: d.questions.map(x => ({
+          q: String(x.q || ''),
+          opts: [0, 1, 2, 3].map(j => String((x.opts || [])[j] || '')),
+          correct: Math.min(3, Math.max(0, +x.correct || 0)),
+          time: +x.time || 20
+        }))
+      };
+      saveQuiz(); renderEditor(); toast('تم استيراد الأسئلة ✅');
+    } catch (e) { toast('ملف غير صالح'); }
+  };
+  r.readAsText(f);
+}
+function validateQuiz() {
+  for (let i = 0; i < quiz.questions.length; i++) {
+    const q = quiz.questions[i], n = i + 1;
+    if (!q.q.trim()) return `السؤال ${n}: اكتب نص السؤال`;
+    if (q.opts.filter(o => o.trim()).length < 2) return `السؤال ${n}: أضف خيارين على الأقل`;
+    if (!q.opts[q.correct].trim()) return `السؤال ${n}: الإجابة الصحيحة يجب أن تكون خياراً غير فارغ`;
+  }
+  return null;
+}
+
+/* ============================================================
+   HOST — create game, lobby, play
+   ============================================================ */
+function cleanup() {
+  if (host) { clearInterval(host.timer); try { host.peer.destroy(); } catch (e) {} host = null; }
+  if (player) { clearInterval(player.timer); player.ended = true; try { player.peer.destroy(); } catch (e) {} player = null; }
+}
+function loading(msg) {
+  app(`<div class="min-h-screen flex flex-col items-center justify-center gap-4 p-6 text-center">
+    <div class="w-14 h-14 border-4 border-white/30 border-t-white rounded-full animate-spin"></div>
+    <div class="font-bold text-xl">${esc(msg)}</div></div>`);
+}
+function startHosting() {
+  const err = validateQuiz(); if (err) return toast(err);
+  saveQuiz();
+  if (typeof Peer === 'undefined') return toast('تعذر تحميل مكتبة الاتصال. تحقق من الإنترنت.');
+  loading('جارٍ إنشاء اللعبة…');
+  const attempt = (n) => {
+    const pin = String(Math.floor(100000 + Math.random() * 900000));
+    const peer = new Peer('bmk-' + pin);
+    let opened = false;
+    peer.on('open', () => {
+      opened = true;
+      host = { pin, peer, players: {}, qi: -1, phase: 'lobby', timer: null };
+      peer.on('connection', onHostConn);
+      peer.on('disconnected', () => { try { peer.reconnect(); } catch (e) {} });
+      renderLobby();
+    });
+    peer.on('error', e => {
+      if (!opened && e.type === 'unavailable-id' && n < 5) { try { peer.destroy(); } catch (x) {} return attempt(n + 1); }
+      if (!opened) { toast('تعذر إنشاء اللعبة (' + e.type + ')'); renderEditor(); }
+    });
+  };
+  attempt(0);
+}
+const joinLink = () => location.href.split('#')[0].split('?')[0] + '?pin=' + host.pin;
+
+function renderLobby() {
+  app(`<div class="max-w-5xl mx-auto p-4">
+    ${brand(true)}
+    <div class="text-center font-black text-xl mb-3">${esc(quiz.title)}</div>
+    ${location.protocol === 'file:' ? `<div class="bg-yellow-300 text-yellow-950 rounded-xl p-3 mb-3 font-bold text-sm text-center">
+      ⚠️ الملف مفتوح محلياً (file://). لكي يعمل الرابط ورمز QR على هواتف اللاعبين، ارفع هذا الملف على استضافة (مثل Netlify Drop أو GitHub Pages) وافتحه من هناك.</div>` : ''}
+    <div class="grid md:grid-cols-2 gap-4">
+      <div class="card p-5 text-center">
+        <div class="text-purple-700 font-bold">رمز الانضمام / Game PIN</div>
+        <div class="pin font-black text-6xl md:text-7xl my-2 text-purple-900">${host.pin}</div>
+        <div id="qr" class="flex justify-center my-3"></div>
+        <div class="ltr text-xs bg-purple-50 text-purple-900 rounded-lg p-2 break-all select-all">${esc(joinLink())}</div>
+        <div class="flex gap-2 mt-3 justify-center flex-wrap">
+          <button onclick="copyLink()" class="btn bg-purple-700 text-white text-sm">📋 نسخ الرابط</button>
+          <button onclick="shareLink()" class="btn bg-[#1368ce] text-white text-sm">📤 مشاركة</button>
+        </div>
+      </div>
+      <div class="card p-5">
+        <div class="flex items-center justify-between mb-3">
+          <span class="font-black text-lg text-purple-900">👥 المتنافسون: <span id="pcount">0</span></span>
+          <span class="text-sm text-purple-700 font-bold">${quiz.questions.length} سؤال</span>
+        </div>
+        <div id="plist" class="flex flex-wrap gap-2 min-h-[120px] content-start"></div>
+      </div>
+    </div>
+    <div class="flex gap-3 justify-center mt-5">
+      <button onclick="if(confirm('إلغاء اللعبة؟')){renderEditor()}" class="btn bg-white/15 text-white">إلغاء</button>
+      <button id="startBtn" onclick="nextQuestion()" disabled class="btn bg-[#26890c] text-white text-xl px-10">▶️ ابدأ اللعبة</button>
+    </div>
+  </div>`);
+  new QRCode($('qr'), { text: joinLink(), width: 200, height: 200, colorDark: '#46178f', colorLight: '#ffffff', correctLevel: QRCode.CorrectLevel.H });
+  updateLobby();
+}
+function updateLobby() {
+  if (!$('plist')) return;
+  const names = Object.keys(host.players).filter(n => host.players[n].connected);
+  $('pcount').textContent = names.length;
+  $('plist').innerHTML = names.map(n => `<span class="pop inline-flex items-center gap-1 bg-purple-100 text-purple-900 font-bold rounded-full ps-4 pe-2 py-1.5">${esc(n)}
+    <button onclick="kick('${encodeURIComponent(n)}')" class="w-6 h-6 rounded-full bg-purple-300 text-purple-900 text-sm leading-none">×</button></span>`).join('')
+    || '<span class="text-purple-400 font-bold">في انتظار اللاعبين… امسحوا رمز QR أو أدخلوا الـ PIN</span>';
+  $('startBtn').disabled = names.length === 0;
+}
+function kick(enc) {
+  const n = decodeURIComponent(enc), p = host.players[n]; if (!p) return;
+  try { p.conn.send({ t: 'kick' }); setTimeout(() => p.conn.close(), 200); } catch (e) {}
+  delete host.players[n]; updateLobby();
+}
+function copyLink() {
+  const l = joinLink();
+  (navigator.clipboard ? navigator.clipboard.writeText(l) : Promise.reject()).then(() => toast('تم نسخ الرابط ✅'), () => { prompt('انسخ الرابط:', l); });
+}
+function shareLink() {
+  if (navigator.share) navigator.share({ title: 'Brahim Machet K', text: 'انضم للمسابقة! PIN: ' + host.pin, url: joinLink() }).catch(() => {});
+  else copyLink();
+}
+
+/* ---- Host networking ---- */
+function onHostConn(c) {
+  c.on('data', m => onHostMsg(c, m));
+  c.on('close', () => {
+    const p = Object.values(host?.players || {}).find(x => x.conn === c);
+    if (!p) return;
+    p.connected = false;
+    if (host.phase === 'lobby') delete host.players[p.name];
+    if (host.phase === 'lobby') updateLobby();
+    else if (host.phase === 'question') { updateAnswered(); checkAllAnswered(); }
+  });
+}
+function onHostMsg(c, m) {
+  if (!host || !m) return;
+  if (m.t === 'join') {
+    const name = String(m.name || '').trim().slice(0, 16);
+    if (!name) return c.send({ t: 'error', msg: 'اكتب اسماً مستعاراً' });
+    const ex = host.players[name];
+    if (ex && ex.connected && ex.conn !== c) return c.send({ t: 'error', msg: 'هذا الاسم مستخدم، اختر اسماً آخر' });
+    if (!ex && host.phase !== 'lobby') return c.send({ t: 'error', msg: 'اللعبة بدأت بالفعل' });
+    if (ex) { ex.conn = c; ex.connected = true; }
+    else host.players[name] = { name, conn: c, connected: true, score: 0, streak: 0, cur: null, last: null };
+    c.send({ t: 'joined', name, phase: host.phase });
+    if (host.phase === 'lobby') updateLobby();
+  } else if (m.t === 'answer') {
+    const p = Object.values(host.players).find(x => x.conn === c);
+    if (!p || host.phase !== 'question' || m.q !== host.qi || p.cur) return;
+    const q = quiz.questions[host.qi];
+    p.cur = { choice: +m.choice, elapsed: Math.min(q.time, (Date.now() - host.qStart) / 1000) };
+    updateAnswered(); checkAllAnswered();
+  }
+}
+const send = (p, msg) => { try { if (p.connected) p.conn.send(msg); } catch (e) {} };
+const broadcast = msg => Object.values(host.players).forEach(p => send(p, msg));
+const ranking = () => Object.values(host.players).sort((a, b) => b.score - a.score);
+
+/* ---- Host game flow ---- */
+function nextQuestion() {
+  host.qi++;
+  if (host.qi >= quiz.questions.length) return finishGame();
+  const q = quiz.questions[host.qi];
+  host.phase = 'question';
+  Object.values(host.players).forEach(p => { p.cur = null; p.last = null; });
+  host.qStart = Date.now();
+  broadcast({ t: 'question', index: host.qi, total: quiz.questions.length, time: q.time, q: q.q, opts: q.opts });
+  renderHostQuestion();
+  clearInterval(host.timer);
+  host.timer = setInterval(() => {
+    const left = q.time - (Date.now() - host.qStart) / 1000;
+    if ($('hTime')) { $('hTime').textContent = Math.max(0, Math.ceil(left)); $('hBar').style.width = Math.max(0, left / q.time * 100) + '%'; }
+    if (left <= 0) endQuestion();
+  }, 100);
+}
+function renderHostQuestion() {
+  const q = quiz.questions[host.qi];
+  app(`<div class="min-h-screen flex flex-col p-4 max-w-5xl mx-auto">
+    <div class="flex items-center justify-between font-bold mb-2">
+      <span class="bg-white/15 rounded-full px-4 py-1">${host.qi + 1} / ${quiz.questions.length}</span>
+      <span class="bg-white/15 rounded-full px-4 py-1">✅ <span id="hAns">0</span> / <span id="hTot">0</span></span>
+    </div>
+    <div class="h-3 rounded-full bg-white/20 overflow-hidden mb-4"><div id="hBar" class="h-full bg-yellow-300" style="width:100%"></div></div>
+    <div class="card p-6 text-center flex items-center justify-center gap-4 mb-5 min-h-[140px]">
+      <div class="text-2xl md:text-4xl font-black flex-1">${esc(q.q)}</div>
+      <div id="hTime" class="w-20 h-20 shrink-0 rounded-full bg-purple-700 text-white flex items-center justify-center text-4xl font-black">${q.time}</div>
+    </div>
+    <div class="grid grid-cols-2 gap-3 flex-1 content-start">
+      ${q.opts.map((o, j) => o.trim() ? `<div class="ans c${j} text-white p-4 md:p-6 flex items-center gap-3 text-lg md:text-2xl min-h-[90px]">${shape(j)}<span class="flex-1">${esc(o)}</span></div>` : '').join('')}
+    </div>
+    <div class="text-center mt-5"><button onclick="endQuestion()" class="btn bg-white/20 text-white">تخطي ⏭️</button></div>
+  </div>`);
+  updateAnswered();
+}
+function updateAnswered() {
+  if (!host || !$('hAns')) return;
+  const ps = Object.values(host.players).filter(p => p.connected);
+  $('hTot').textContent = ps.length; $('hAns').textContent = ps.filter(p => p.cur).length;
+}
+function checkAllAnswered() {
+  const ps = Object.values(host.players).filter(p => p.connected);
+  if (host.phase === 'question' && ps.length && ps.every(p => p.cur)) setTimeout(() => host && host.phase === 'question' && endQuestion(), 400);
+}
+function endQuestion() {
+  if (!host || host.phase !== 'question') return;
+  clearInterval(host.timer);
+  host.phase = 'results';
+  const q = quiz.questions[host.qi];
+  const counts = [0, 0, 0, 0];
+  Object.values(host.players).forEach(p => {
+    if (p.cur && p.cur.choice >= 0 && p.cur.choice < 4) counts[p.cur.choice]++;
+    const ok = !!p.cur && p.cur.choice === q.correct;
+    if (ok) {
+      const pts = Math.round(500 + 500 * (1 - Math.min(1, p.cur.elapsed / q.time)));
+      p.score += pts; p.streak++; p.last = { ok, pts };
+    } else { p.streak = 0; p.last = { ok: false, pts: 0, answered: !!p.cur }; }
+  });
+  const rk = ranking();
+  rk.forEach((p, i) => send(p, { t: 'result', ok: p.last.ok, pts: p.last.pts, score: p.score, rank: i + 1, total: rk.length, streak: p.streak, answered: !!p.cur, correct: q.correct }));
+  const max = Math.max(1, ...counts);
+  app(`<div class="min-h-screen flex flex-col p-4 max-w-4xl mx-auto">
+    <div class="card p-5 text-center mb-5 mt-4"><div class="text-xl md:text-3xl font-black">${esc(q.q)}</div></div>
+    <div class="grid grid-cols-4 gap-3 items-end h-56 mb-4">
+      ${[0, 1, 2, 3].map(j => q.opts[j].trim() ? `<div class="flex flex-col items-center justify-end h-full">
+        <div class="font-black text-2xl mb-1">${counts[j]}</div>
+        <div class="w-full rounded-t-xl c${j} ${j === q.correct ? 'ring-4 ring-white' : 'opacity-45'}" style="height:${Math.max(8, counts[j] / max * 85)}%"></div>
+        <div class="w-9 h-9 mt-2">${SHAPE_SVG[j]}</div>
+        ${j === q.correct ? '<div class="text-2xl">✅</div>' : ''}
+      </div>` : '<div></div>').join('')}
+    </div>
+    <div class="card p-4 text-center font-black text-lg text-green-700 mb-5">الإجابة الصحيحة: ${esc(q.opts[q.correct])}</div>
+    <div class="text-center"><button onclick="renderLeaderboard()" class="btn bg-white text-purple-900 text-xl px-10">🏆 الترتيب</button></div>
+  </div>`);
+}
+function renderLeaderboard() {
+  host.phase = 'board';
+  const rk = ranking().slice(0, 5), last = host.qi >= quiz.questions.length - 1;
+  app(`<div class="min-h-screen flex flex-col p-4 max-w-2xl mx-auto">
+    <div class="text-center font-black text-3xl my-6">🏆 لوحة الترتيب</div>
+    <div class="grid gap-3">
+      ${rk.map((p, i) => `<div class="card pop p-4 flex items-center gap-3" style="animation-delay:${i * 80}ms">
+        <span class="w-10 h-10 rounded-full bg-purple-700 text-white flex items-center justify-center font-black">${i + 1}</span>
+        <span class="flex-1 font-black text-xl truncate">${esc(p.name)} ${p.streak >= 3 ? '🔥' : ''}</span>
+        <span class="font-black text-xl text-purple-800">${p.score}</span></div>`).join('') || '<div class="text-center">لا يوجد لاعبون</div>'}
+    </div>
+    <div class="text-center mt-8"><button onclick="nextQuestion()" class="btn bg-[#26890c] text-white text-xl px-10">${last ? '🏁 النتائج النهائية' : 'السؤال التالي ➡️'}</button></div>
+  </div>`);
+}
+function finishGame() {
+  host.phase = 'end';
+  const rk = ranking();
+  rk.forEach((p, i) => send(p, { t: 'end', rank: i + 1, total: rk.length, score: p.score }));
+  const pod = [1, 0, 2].map(i => rk[i]);
+  const hts = ['h-40', 'h-56', 'h-28'], medals = ['🥈', '🥇', '🥉'];
+  app(`<div class="min-h-screen flex flex-col p-4 max-w-3xl mx-auto">
+    <div class="text-center font-black text-3xl my-6">🎉 انتهت المسابقة!</div>
+    <div class="grid grid-cols-3 gap-3 items-end mb-6">
+      ${pod.map((p, k) => p ? `<div class="text-center pop">
+        <div class="text-4xl">${medals[k]}</div>
+        <div class="font-black truncate">${esc(p.name)}</div>
+        <div class="font-bold mb-1">${p.score}</div>
+        <div class="${hts[k]} rounded-t-xl bg-white/90 text-purple-900 flex items-start justify-center pt-2 font-black text-3xl">${[2, 1, 3][k]}</div></div>` : '<div></div>').join('')}
+    </div>
+    <div class="card p-3 max-h-64 overflow-auto">
+      ${rk.map((p, i) => `<div class="flex items-center gap-3 py-1.5 border-b border-purple-100 last:border-0"><span class="w-8 text-purple-500 font-black">${i + 1}</span><span class="flex-1 font-bold truncate">${esc(p.name)}</span><span class="font-black">${p.score}</span></div>`).join('')}
+    </div>
+    <div class="flex gap-3 justify-center mt-6 flex-wrap">
+      <button onclick="exportCSV()" class="btn bg-white/20 text-white">⬇️ تصدير النتائج CSV</button>
+      <button onclick="renderHome()" class="btn bg-white text-purple-900">🔄 لعبة جديدة</button>
+    </div>
+  </div>`);
+}
+function exportCSV() {
+  const rows = [['Rank', 'Name', 'Score'], ...ranking().map((p, i) => [i + 1, '"' + p.name.replace(/"/g, '""') + '"', p.score])];
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob(['\ufeff' + rows.map(r => r.join(',')).join('\n')], { type: 'text/csv;charset=utf-8' }));
+  a.download = 'results.csv'; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+
+/* ============================================================
+   PLAYER
+   ============================================================ */
+function renderJoin(msg) {
+  cleanup();
+  const pin = new URLSearchParams(location.search).get('pin') || '';
+  const savedName = (() => { try { return localStorage.getItem('bmk_nick') || ''; } catch (e) { return ''; } })();
+  app(`<div class="max-w-sm mx-auto p-5 min-h-screen flex flex-col justify-center">
+    ${brand()}
+    <div class="card p-5 grid gap-3">
+      ${msg ? `<div class="bg-red-100 text-red-700 rounded-lg p-2 text-center font-bold text-sm">${esc(msg)}</div>` : ''}
+      <input id="jpin" inputmode="numeric" maxlength="6" value="${esc(pin)}" placeholder="رمز اللعبة (PIN)"
+        class="pin text-center border-2 border-purple-200 rounded-xl p-3 font-black text-2xl focus:outline-none focus:border-purple-600">
+      <input id="jname" maxlength="16" value="${esc(savedName)}" placeholder="اسمك المستعار"
+        class="text-center border-2 border-purple-200 rounded-xl p-3 font-black text-xl focus:outline-none focus:border-purple-600">
+      <button onclick="joinGame()" class="btn bg-[#26890c] text-white text-xl">انضمام!</button>
+      <button onclick="renderHome()" class="text-purple-700 font-bold text-sm">← رجوع</button>
+    </div>
+  </div>`);
+}
+function joinGame() {
+  const pin = $('jpin').value.trim(), name = $('jname').value.trim();
+  if (!/^\d{6}$/.test(pin)) return toast('أدخل رمز PIN مكوناً من 6 أرقام');
+  if (!name) return toast('اكتب اسماً مستعاراً');
+  try { localStorage.setItem('bmk_nick', name); } catch (e) {}
+  if (typeof Peer === 'undefined') return toast('تعذر تحميل مكتبة الاتصال. تحقق من الإنترنت.');
+  loading('جارٍ الانضمام…');
+  const peer = new Peer();
+  player = { peer, name, pin, joined: false, ended: false, score: 0, timer: null, answered: false };
+  const fail = m => { if (player && player.peer === peer) { clearTimeout(player.to); renderJoin(m); } };
+  player.to = setTimeout(() => { if (!player.joined) fail('تعذر الاتصال باللعبة. تأكد من الرمز وحاول مجدداً.'); }, 12000);
+  peer.on('error', e => fail(e.type === 'peer-unavailable' ? 'لا توجد لعبة بهذا الرمز' : 'خطأ في الاتصال (' + e.type + ')'));
+  peer.on('open', () => {
+    const conn = peer.connect('bmk-' + pin, { reliable: true });
+    player.conn = conn;
+    conn.on('open', () => conn.send({ t: 'join', name }));
+    conn.on('data', onPlayerMsg);
+    conn.on('close', () => {
+      if (player && player.peer === peer && !player.ended) {
+        clearInterval(player.timer);
+        app(`<div class="min-h-screen flex flex-col items-center justify-center gap-4 p-6 text-center">
+          <div class="text-6xl">📡</div><div class="font-black text-2xl">انقطع الاتصال باللعبة</div>
+          <button onclick="renderJoin()" class="btn bg-white text-purple-900">إعادة الانضمام</button></div>`);
+      }
+    });
+  });
+}
+function playerScreen(inner, bg) {
+  app(`<div class="min-h-screen flex flex-col ${bg || ''}">
+    <div class="flex items-center justify-between p-3 bg-black/25 font-bold">
+      <span class="truncate">${esc(player.name)}</span><span>⭐ ${player.score}</span></div>
+    ${inner}</div>`);
+}
+function onPlayerMsg(m) {
+  if (!player || !m) return;
+  if (m.t === 'error') { player.ended = true; clearTimeout(player.to); return renderJoin(m.msg); }
+  if (m.t === 'kick') { player.ended = true; return renderJoin('تمت إزالتك من اللعبة'); }
+  if (m.t === 'joined') {
+    player.joined = true; clearTimeout(player.to);
+    return playerScreen(`<div class="flex-1 flex flex-col items-center justify-center gap-3 text-center p-6">
+      <div class="text-6xl">🎉</div><div class="font-black text-3xl">أنت داخل اللعبة!</div>
+      <div class="text-white/80 font-bold">شاهد اسمك على الشاشة… في انتظار بدء المسابقة</div></div>`);
+  }
+  if (m.t === 'question') return playerQuestion(m);
+  if (m.t === 'result') {
+    clearInterval(player.timer); player.score = m.score;
+    const ok = m.ok;
+    return playerScreen(`<div class="flex-1 flex flex-col items-center justify-center gap-3 text-center p-6 pop">
+      <div class="text-8xl">${ok ? '✅' : (m.answered ? '❌' : '⏰')}</div>
+      <div class="font-black text-4xl">${ok ? 'إجابة صحيحة!' : (m.answered ? 'إجابة خاطئة' : 'انتهى الوقت')}</div>
+      ${ok ? `<div class="font-black text-3xl text-yellow-300">+${m.pts}</div>` : ''}
+      ${m.streak >= 2 ? `<div class="font-bold">🔥 ${m.streak} إجابات صحيحة متتالية</div>` : ''}
+      <div class="bg-black/25 rounded-xl px-6 py-3 font-black text-xl mt-2">المركز ${m.rank} من ${m.total}</div></div>`,
+      ok ? 'bg-[#26890c]' : 'bg-[#e21b3c]');
+  }
+  if (m.t === 'end') {
+    player.ended = true; clearInterval(player.timer); player.score = m.score;
+    return playerScreen(`<div class="flex-1 flex flex-col items-center justify-center gap-3 text-center p-6 pop">
+      <div class="text-7xl">${m.rank === 1 ? '🥇' : m.rank === 2 ? '🥈' : m.rank === 3 ? '🥉' : '🏁'}</div>
+      <div class="font-black text-3xl">انتهت المسابقة</div>
+      <div class="font-black text-5xl text-yellow-300">المركز ${m.rank}</div>
+      <div class="font-bold">من ${m.total} لاعبين · ${m.score} نقطة</div>
+      <button onclick="renderHome()" class="btn bg-white text-purple-900 mt-4">الصفحة الرئيسية</button></div>`);
+  }
+}
+function playerQuestion(m) {
+  clearInterval(player.timer);
+  player.answered = false; player.qi = m.index;
+  const t0 = Date.now();
+  playerScreen(`<div class="px-3 pt-3 text-center">
+      <div class="flex items-center justify-between text-sm font-bold mb-1"><span>${m.index + 1} / ${m.total}</span><span id="pTime" class="text-2xl font-black">${m.time}</span></div>
+      <div class="h-2 rounded-full bg-white/20 overflow-hidden"><div id="pBar" class="h-full bg-yellow-300" style="width:100%"></div></div>
+      <div class="font-bold mt-2 text-white/90 text-sm md:text-base">${esc(m.q)}</div>
+    </div>
+    <div id="pbtns" class="flex-1 grid grid-cols-2 gap-3 p-3">
+      ${m.opts.map((o, j) => o.trim() ? `<button onclick="sendAnswer(${j})" class="ans c${j} flex flex-col items-center justify-center gap-2 text-white p-2 min-h-[130px]">
+        <span class="w-14 h-14">${SHAPE_SVG[j]}</span><span class="text-sm md:text-lg px-1">${esc(o)}</span></button>` : '<div></div>').join('')}
+    </div>`);
+  player.timer = setInterval(() => {
+    const left = m.time - (Date.now() - t0) / 1000;
+    if ($('pTime')) { $('pTime').textContent = Math.max(0, Math.ceil(left)); $('pBar').style.width = Math.max(0, left / m.time * 100) + '%'; }
+    if (left <= 0) { clearInterval(player.timer); if (!player.answered) waitingScreen('⏰ انتهى الوقت'); }
+  }, 100);
+}
+function sendAnswer(j) {
+  if (!player || player.answered) return;
+  player.answered = true;
+  try { player.conn.send({ t: 'answer', q: player.qi, choice: j }); } catch (e) {}
+  waitingScreen('تم إرسال إجابتك ✨', j);
+}
+function waitingScreen(msg, j) {
+  playerScreen(`<div class="flex-1 flex flex-col items-center justify-center gap-4 text-center p-6 ${j !== undefined ? 'c' + j : ''}">
+    ${j !== undefined ? `<div class="w-24 h-24">${SHAPE_SVG[j]}</div>` : ''}
+    <div class="font-black text-2xl">${msg}</div>
+    <div class="font-bold text-white/80">في انتظار بقية اللاعبين…</div></div>`);
+}
+
+/* ============================================================
+   Boot
+   ============================================================ */
+window.addEventListener('beforeunload', e => { if (host && host.phase !== 'lobby' && host.phase !== 'end') { e.preventDefault(); e.returnValue = ''; } });
+if (new URLSearchParams(location.search).get('pin')) renderJoin(); else renderHome();
+</script>
+</body>
+</html>
